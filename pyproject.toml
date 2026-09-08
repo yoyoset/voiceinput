@@ -1,0 +1,21 @@
+[project]
+name = "voiceinput"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.2",
+    "pynput>=1.8.2",
+    "pyside6>=6.11.2",
+    "sherpa-onnx>=1.13.6",
+    "sherpa-onnx-core>=1.13.6",
+    "sounddevice>=0.5.6",
+    "soundfile>=0.14.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.22.2",
+    "pytest>=9.1.1",
+]

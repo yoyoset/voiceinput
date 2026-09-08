@@ -1,0 +1,7 @@
+[
+  { "key": "tts_mixed_1", "text": "把这个 function 改成 async，再跑一遍 pytest" },
+  { "key": "tts_mixed_2", "text": "这个 commit 先别 push，我要改一下 config 里的 hotkey" },
+  { "key": "tts_mixed_3", "text": "帮我看一下 keytyper 项目的依赖，enigo 是什么版本" },
+  { "key": "tts_pure_zh", "text": "我想做一个语音输入的工具，按住热键说话，松开之后文字直接出现在光标位置" },
+  { "key": "tts_digits", "text": "把超时改成三十秒，采样率用十六千赫兹，单声道就够了" }
+]

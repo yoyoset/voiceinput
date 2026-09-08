@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Test/tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Downloaded ASR models (large, fetched at runtime)
+models/
+
+# Runtime state and user data (see build.py's user-data backup logic)
+history.db
+voiceinput.log
+
+# Debug/trace output from manual runs
+selftest.txt
+startup-trace.txt
