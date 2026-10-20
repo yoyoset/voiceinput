@@ -20,17 +20,25 @@
 
 from __future__ import annotations
 
+import logging
 import math
 
 from PySide6.QtCore import QPoint, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
+from .. import window_state
 from .theme import Palette
 from .widgets import FloatingHud
 
+log = logging.getLogger("voiceinput")
+
 SIZE = 60
 _DRAG_THRESHOLD = 4      # 小于这个位移算点击,不算拖动
+
+# 多久查一次"它是不是还真的在屏幕上"。几个 Win32 查询 + 一次 60x60 的重画,
+# 3 秒一次的开销可以忽略;再长的话,用户发现它不见了去找的时候它还没回来。
+GUARD_MS = 3000
 
 
 def _stroke(color: QColor, width: float) -> QPen:
@@ -67,6 +75,15 @@ class MicBadge(FloatingHud, QWidget):
         self._anim = QTimer(self)
         self._anim.timeout.connect(self._tick)
 
+        # 见 `_guard_check`。`_wanted` 是"配置要它显示",和 Qt 的 isVisible()
+        # 不是一回事 —— 后者被系统从外面藏掉时还是 True。
+        self._wanted = False
+        self._last_problems: list[str] = []
+        self._probe = window_state.probe      # 测试里换成假的
+        self._guard = QTimer(self)
+        self._guard.setInterval(GUARD_MS)
+        self._guard.timeout.connect(self._guard_check)
+
     # ---- 对外 ----
 
     def set_menu(self, menu: QMenu) -> None:
@@ -95,6 +112,15 @@ class MicBadge(FloatingHud, QWidget):
         if abs(level - self._level) > 0.01:
             self._level = level
             self.update()
+
+    def setVisible(self, visible: bool) -> None:  # noqa: N802
+        """show()/hide() 最终都走这里,顺便记下"该不该显示",开关巡检。"""
+        self._wanted = visible
+        if visible:
+            self._guard.start()
+        else:
+            self._guard.stop()
+        super().setVisible(visible)
 
     def move_to(self, x: int, y: int) -> None:
         """挪到指定位置,并夹在屏幕内 —— 换了分辨率或拔了外接屏之后,
@@ -156,6 +182,52 @@ class MicBadge(FloatingHud, QWidget):
             self.moved.emit(self.x(), self.y())
         else:
             self.clicked.emit()
+
+    # ---- 自检 ----
+
+    def _guard_check(self) -> None:
+        """它该在屏幕上,那就确认它真的在。不在就重新摆出来。
+
+        **起因(2026-09-24):** 悬浮麦克风会凭空消失,设置里的勾还勾着;
+        只有先取消再勾上才回来。说明窗口是被系统从外面藏掉的,Qt 不知情 ——
+        `setVisible(True)` 对"自认为已显示"的窗口什么都不做。取消再勾
+        之所以管用,是因为它走了一遍真正的 hide → show。这里自动做同一件事。
+
+        是被哪一种方式藏掉的**还没抓到现场**,所以把原因写进日志(只在
+        原因变化时写,免得刷屏),见 `window_state.py`。
+        """
+        if not self._wanted:
+            return
+        state = self._probe(int(self.winId()))
+        if state is None:
+            return
+        visible, iconic, cloaked = state
+        found = window_state.problems(
+            visible=visible and self.isVisible(), iconic=iconic, cloaked=cloaked,
+            on_screen=self._on_some_screen())
+        if found != self._last_problems:
+            if found:
+                log.warning("悬浮麦克风不在屏幕上了(%s),重新显示", "、".join(found))
+            self._last_problems = found
+        if found:
+            self._reshow()
+        else:
+            # 看得见也不一定画着东西:透明置顶窗口在显示器休眠/切分辨率之后
+            # 有可能内容丢了、整个变成全透明(没实测到,属于推测)。
+            # 空闲时它从不自己重画,所以顺手画一次 —— 60x60 的开销可以忽略。
+            self.repaint()
+
+    def _on_some_screen(self) -> bool:
+        geo = self.frameGeometry()
+        return any(s.geometry().intersects(geo) for s in QGuiApplication.screens())
+
+    def _reshow(self) -> None:
+        """真正走一遍 hide → show,和用户"取消再勾上"一样。
+        顺带把位置夹回主屏 —— 屏幕布局变了的话原坐标可能已经在外面。"""
+        super().setVisible(False)
+        self.move_to(self.x(), self.y())
+        super().setVisible(True)
+        self.raise_()
 
     # ---- 绘制 ----
 

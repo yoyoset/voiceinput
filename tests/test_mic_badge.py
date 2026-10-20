@@ -157,3 +157,40 @@ class TestClickVsDrag:
         self.move(badge, 321, 321)
         self.release(badge, 321, 321)
         assert clicks == [True]
+
+
+class TestGuard:
+    """被系统从外面藏掉之后要自己回来 —— 2026-09-24 的故障是只能取消再勾上。"""
+
+    def test_guard_runs_only_while_wanted(self, badge):
+        badge.show()
+        assert badge._guard.isActive()
+        badge.hide()
+        assert not badge._guard.isActive()
+
+    def test_hidden_by_system_gets_reshown(self, badge, monkeypatch):
+        badge.show()
+        badge._probe = lambda hwnd: (False, False, 0)   # Windows 说:看不见
+        reshown = []
+        monkeypatch.setattr(badge, "_reshow", lambda: reshown.append(1))
+        badge._guard_check()
+        assert reshown == [1]
+        assert badge._last_problems == ["被隐藏"]
+
+    def test_healthy_window_is_left_alone(self, badge, monkeypatch):
+        badge.show()
+        badge.move_to_default()
+        badge._probe = lambda hwnd: (True, False, 0)
+        reshown = []
+        monkeypatch.setattr(badge, "_reshow", lambda: reshown.append(1))
+        badge._guard_check()
+        assert reshown == []
+
+    def test_not_wanted_means_no_check(self, badge, monkeypatch):
+        """用户自己关掉的,不能被巡检又弄出来。"""
+        badge.hide()
+        badge._probe = lambda hwnd: (False, False, 0)
+        reshown = []
+        monkeypatch.setattr(badge, "_reshow", lambda: reshown.append(1))
+        badge._guard_check()
+        assert reshown == []
