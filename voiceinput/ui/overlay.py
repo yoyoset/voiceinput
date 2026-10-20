@@ -88,8 +88,18 @@ class Overlay(FloatingHud, QWidget):
 
         停留时间设成 0 = 不显示结果。**直接跳过,不能显示 0 毫秒** ——
         那会闪一下再消失,比不显示更烦人。
+
+        **但"跳过"不等于"什么都不做"。** 此刻条上还挂着"识别中…",那是个
+        不会自己退的常亮态 —— 以前这里直接 return,结果 preview_ms=0 的人
+        每次识别成功后提示条都卡在"识别中…"上(2026-09-24 实际遇到,
+        右上角还挂着录音时长 54s)。不显示结果,就得把进行中的那条收掉。
         """
         if not self._enabled or self._preview_ms <= 0:
+            if self._state in ("recording", "busy"):
+                self._pulse_timer.stop()
+                self._state = "idle"
+                self._note = ""
+                self.hide()
             return
         self._state = "result"
         self._message = text

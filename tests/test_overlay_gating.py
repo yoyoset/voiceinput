@@ -71,6 +71,30 @@ class TestEnabled:
         assert overlay._state == "idle"
         overlay.close()
 
+    @pytest.mark.parametrize("preview_ms", [0, 1200])
+    def test_result_never_leaves_busy_stuck(self, qapp, preview_ms):
+        """**2026-09-24 真实故障。** preview_ms=0 时 show_result 直接 return,
+        把前面那条"识别中…"永久留在屏幕上。不显示结果可以,但进行中的
+        那条必须收掉。"""
+        overlay = make(qapp, preview_ms=preview_ms)
+        overlay.show_busy("识别中…")
+        overlay.set_note("54s")
+        overlay.show_result("一句话")
+        assert overlay._state != "busy"
+        assert not overlay._pulse_timer.isActive()
+        if preview_ms == 0:
+            assert not overlay.isVisible()
+        overlay.close()
+
+    def test_zero_preview_does_not_eat_a_warning(self, qapp):
+        """只收"进行中"的那两种。挂着的警告(启动时排队弹的那种)不能
+        被一次成功的识别顺手抹掉 —— 那是用户还没读完的东西。"""
+        overlay = make(qapp, preview_ms=0)
+        overlay.show_warning("热键被占用")
+        overlay.show_result("一句话")
+        assert overlay._state == "warning"
+        overlay.close()
+
     def test_zero_preview_still_shows_failures(self, qapp):
         overlay = make(qapp, preview_ms=0)
         overlay.show_error("只录到静音")
