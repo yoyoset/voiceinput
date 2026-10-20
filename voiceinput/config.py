@@ -123,6 +123,13 @@ class UIConfig:
     对着 Claude Code 连续说话时才值得打开。
     """
 
+    tray_click: str = "open"
+    """单击托盘图标做什么:`open` 打开设置窗口,`talk` 开始/结束说话(和点悬浮麦克风一样)。
+
+    给想把入口固定在任务栏上的人用。点托盘会抢焦点,`talk` 模式下会先把焦点
+    还给之前那个窗口再录音,见 `focus_tracker.py`。
+    """
+
 
 @dataclass
 class HistoryConfig:

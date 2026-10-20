@@ -203,6 +203,15 @@ class GeneralPage(Page):
         self.badge_action.currentIndexChanged.connect(self.emit_changed)
         card.add_layout(labeled("点一下说完之后", self.badge_action))
 
+        self.tray_click = ComboBox()
+        for label, value in [("打开设置窗口", "open"),
+                             ("开始/结束说话(同悬浮麦克风)", "talk")]:
+            self.tray_click.addItem(label, value)
+        self.tray_click.setCurrentIndex(
+            max(0, self.tray_click.findData(cfg.ui.tray_click)))
+        self.tray_click.currentIndexChanged.connect(self.emit_changed)
+        card.add_layout(labeled("单击托盘图标", self.tray_click))
+
         row = QHBoxLayout()
         btn_home = QPushButton("把它挪回默认位置")
         btn_home.clicked.connect(self.badgeHomeRequested.emit)
@@ -215,7 +224,10 @@ class GeneralPage(Page):
             "**热键被别的软件占用时(比如微信),它是还能用的那条路**。\n"
             "「自动回车发送」适合对着 Claude Code 连续说话,"
             "但**发出去就撤不回来了,识别错也一样** —— 所以默认是只粘贴。\n"
-            "换了显示器或分辨率之后如果找不着它了,点上面那个按钮挪回来。"
+            "换了显示器或分辨率之后如果找不着它了,点上面那个按钮挪回来。\n"
+            "想把入口固定在任务栏上:「单击托盘图标」选「开始/结束说话」,再到 Windows "
+            "设置 → 个性化 → 任务栏 → 其他系统托盘图标,把 VoiceInput 打开,"
+            "它就一直显示在任务栏右下角。说完的字会送回你点托盘之前在用的那个窗口。"
         ))
         card.add(hint(
             "关掉提示条后,麦克风打不开、只录到静音这类失败也就看不见了,不建议关。\n"
@@ -261,6 +273,7 @@ class GeneralPage(Page):
         cfg.ui.preview_ms = self.ui_preview.value()
         cfg.ui.show_mic_badge = self.ui_badge.isChecked()
         cfg.ui.badge_action = self.badge_action.currentData()
+        cfg.ui.tray_click = self.tray_click.currentData()
 
         cfg.start_minimized = self.start_min.isChecked()
         cfg.autostart = self.autostart.isChecked()

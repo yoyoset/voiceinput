@@ -23,11 +23,14 @@ class Tray(QSystemTrayIcon):
     wizardRequested = Signal()
     sendAfterChanged = Signal(bool)
     """「说完直接发送」被勾上/取消。真正的存储在 `cfg.ui.badge_action`。"""
+    talkRequested = Signal()
+    """单击托盘图标,且设置成了「单击说话」(`cfg.ui.tray_click == "talk"`)。"""
 
     def __init__(self, palette: Palette, parent=None) -> None:
         super().__init__(parent)
         self._palette = palette
         self._state = "loading"
+        self._click = "open"
 
         menu = QMenu()
         self._act_status = QAction("正在启动…", menu)
@@ -71,10 +74,17 @@ class Tray(QSystemTrayIcon):
         self.set_state("loading", "正在启动…")
 
     def _on_activated(self, reason) -> None:
-        if reason in (
-            QSystemTrayIcon.ActivationReason.Trigger,
-            QSystemTrayIcon.ActivationReason.DoubleClick,
-        ):
+        R = QSystemTrayIcon.ActivationReason
+        if self._click == "talk":
+            # 单击说话时**不理双击**:双击的第一下已经发过一次 Trigger,
+            # 再响应 DoubleClick 就是"刚开始录就结束"。设置窗口改用中键打开
+            # (右键菜单里也有)。
+            if reason == R.Trigger:
+                self.talkRequested.emit()
+            elif reason == R.MiddleClick:
+                self.openRequested.emit()
+            return
+        if reason in (R.Trigger, R.DoubleClick):
             self.openRequested.emit()
 
     def apply(self, cfg: Config) -> None:
@@ -83,6 +93,9 @@ class Tray(QSystemTrayIcon):
         **必须挡住信号。** 不挡的话,设置页改了这一项 → 配置分发到这里 →
         勾一变又发一次 sendAfterChanged → 又写一次配置,绕成一个环。
         """
+        if cfg.ui.tray_click != self._click:
+            self._click = cfg.ui.tray_click
+            self._refresh_tooltip()
         want = cfg.ui.badge_action == "paste_and_send"
         if want == self._act_send.isChecked():
             return
@@ -99,7 +112,13 @@ class Tray(QSystemTrayIcon):
         p = self._palette
         self.setIcon(state_icon(state, p.accent, p.danger, p.text_dim))
         self._act_status.setText(text)
-        self.setToolTip(f"VoiceInput — {text}")
+        self._refresh_tooltip()
+
+    def _refresh_tooltip(self) -> None:
+        tip = f"VoiceInput — {self._act_status.text()}"
+        if self._click == "talk":
+            tip += "\n单击:开始/结束说话  中键:打开设置"
+        self.setToolTip(tip)
 
     @property
     def is_paused(self) -> bool:

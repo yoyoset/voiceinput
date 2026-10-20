@@ -22,7 +22,8 @@ from .config import Config, app_dir
 from .delivery import Delivery
 from .engine_host import EngineHost
 from .engine_status import EngineStatus
-from .foreground import foreground_window
+from .focus_tracker import FocusTracker
+from .foreground import activate_window, foreground_window
 from .history_host import HistoryHost
 from .hotkey_host import HotkeyHost
 from .microphone import Microphone
@@ -40,6 +41,11 @@ from .ui.tray import Tray
 from .wizard_host import WizardHost
 
 log = logging.getLogger("voiceinput")
+
+# 单击托盘说话时,把焦点还回去之后最多等它落定多久。实测 300ms 内就回来了,
+# 留一倍余量;等不到也照常开始 —— 贴的时候 Delivery 会再核对一次窗口。
+FOCUS_SETTLE_MS = 600
+_FOCUS_POLL_MS = 20
 
 
 def _listening_text(action: str) -> str:
@@ -86,6 +92,7 @@ class App(QObject):
         self.placement = BadgePlacement(self.badge, self.settings, self)
         self.hotkeys = HotkeyHost(self)
         self.cancel_key = CancelKey(self)
+        self.focus = FocusTracker(self)
 
         self._wire()
         # 解析设备**必须在 _wire 之后**:结果可能带一句要告诉用户的话,
@@ -97,6 +104,7 @@ class App(QObject):
         self._reload_engine()
         self.hotkeys.apply(self.cfg)
         self.cancel_key.start()
+        self.focus.start()
 
         self.tray.show()
         self.placement.apply(self.cfg)
@@ -125,6 +133,7 @@ class App(QObject):
         self.tray.pauseToggled.connect(self._on_pause_toggled)
         self.tray.wizardRequested.connect(self.show_wizard)
         self.tray.sendAfterChanged.connect(self._set_badge_action)
+        self.tray.talkRequested.connect(self._toggle_from_tray)
 
         # 桌面上一个圆按钮,出了问题第一反应就是右键点它。用托盘那一份菜单 ——
         # 两份会漂移成不一样的选项,而且没人会发现。
@@ -352,6 +361,33 @@ class App(QObject):
             self.session.finish(action)
         else:
             self._begin_recording(action)
+
+    def _toggle_from_tray(self) -> None:
+        """单击托盘图标说话。和点悬浮麦克风是同一个动作,**多一步还焦点**。
+
+        点托盘的那一下,前台已经变成了任务栏(实测,见 `focus_tracker.py`)。
+        不还回去的话,开始时记下的目标窗口是任务栏、结束时文字没处可贴。
+        所以先把焦点交还给点托盘之前在用的那个窗口,等它真的回到前台,
+        再走悬浮麦克风那条路 —— 开始和结束两次点击都要这样。
+        """
+        target = self.focus.last_target
+        if target is None or not activate_window(target):
+            # 还不回去也照常录:贴的时候 Delivery 会发现窗口不对,
+            # 把文字留在剪贴板并提示,不会静默丢掉
+            log.warning("单击托盘说话:没能把焦点还给原窗口(%s)", target)
+            self._toggle_from_badge()
+            return
+        waited = 0
+
+        def poll() -> None:
+            nonlocal waited
+            if foreground_window() == target or waited >= FOCUS_SETTLE_MS:
+                self._toggle_from_badge()
+                return
+            waited += _FOCUS_POLL_MS
+            QTimer.singleShot(_FOCUS_POLL_MS, poll)
+
+        poll()
 
     def _set_badge_action(self, send_after: bool) -> None:
         """右键菜单里勾了「说完直接发送」。

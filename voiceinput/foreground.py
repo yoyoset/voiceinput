@@ -17,3 +17,20 @@ def foreground_window() -> int | None:
     import ctypes
 
     return ctypes.windll.user32.GetForegroundWindow()
+
+
+def activate_window(hwnd: int) -> bool:
+    """把前台还给 `hwnd`。返回系统是否接受了这个请求。
+
+    **不是立即生效的**:2026-09-24 实测调用返回 1 之后马上 GetForegroundWindow
+    得到的是 0,要过一小会儿才变成目标窗口 —— 调用方要等它落定再做事,
+    见 `App._toggle_from_tray`。
+
+    Windows 平时不让后台程序抢前台;这里能成功是因为用户刚点了我们的
+    托盘图标,系统在那一刻授权了图标的主人。
+    """
+    if sys.platform != "win32" or not hwnd:
+        return False
+    import ctypes
+
+    return bool(ctypes.windll.user32.SetForegroundWindow(hwnd))
