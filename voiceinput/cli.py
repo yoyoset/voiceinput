@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -138,4 +139,31 @@ def main() -> int:
 
     _crumb("running app")
     app = App(qapp)          # noqa: F841 - 持有引用,别被 GC 掉
-    return qapp.exec()
+    code = qapp.exec()
+    logging.getLogger("voiceinput").info("事件循环已结束,进程退出")
+    _exit_watchdog()
+    return code
+
+
+# 事件循环结束之后,正常退出还要等解释器收尾(等非守护线程、回收对象)。
+# 2026-09-24 出过"点了退出进程却一直活着"的事 —— 这里兜最后一层底。
+EXIT_GRACE_S = 5.0
+
+
+def _exit_watchdog() -> None:
+    """解释器收尾超过几秒还没结束,就硬退。
+
+    守护线程不会拦着进程退出,所以正常情况下它根本没机会跑;
+    只有收尾真的卡住了,它才会醒来,记一笔再强行结束。
+    """
+    import threading
+
+    def force() -> None:
+        logging.getLogger("voiceinput").warning(
+            "退出收尾超过 %.0f 秒还没结束,强制结束进程", EXIT_GRACE_S)
+        logging.shutdown()
+        os._exit(0)
+
+    timer = threading.Timer(EXIT_GRACE_S, force)
+    timer.daemon = True
+    timer.start()

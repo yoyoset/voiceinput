@@ -435,17 +435,39 @@ class App(QObject):
         self.wizard.open(self.cfg, self.theme.palette)
 
     def shutdown(self) -> None:
-        log.info("退出")
-        # 配置变更是防抖的,退出前得把还压着的那次发出来,否则用户改完
-        # 最后一项就关程序,那次改动会随没触发的定时器一起丢掉
-        self.window.flush_pending()
-        self.hotkeys.stop()
-        self.cancel_key.stop()
-        self.status.stop()
-        self.session.abort()
-        self.engine.stop()
-        self.history.close()
-        self.badge.hide()
-        self.tray.hide()
-        self.qapp.quit()
+        """收摊退出。
 
+        **2026-09-24 实际故障:** 点了「退出」,日志里有"退出"这一行,可进程
+        一直活着(主线程还停在 `qapp.exec()` 里空转),桌面上那条"识别中…"
+        也一直挂着。原来这里是一串裸调用,中间任何一步抛异常,后面的
+        `quit()` 就被跳过 —— 而打包版没有控制台,异常连个影子都不留。
+        手上没有抓到是哪一步(py-spy 只看到主线程在事件循环里闲着,
+        几种猜测单独复现都没复现出来),所以:
+
+        - 每一步单独兜住并记日志,一步失败不连累后面的,下次就知道是谁;
+        - 最后用 `exit(0)` 而不是 `quit()`:Qt 6 的 `quit()` 是个"请求",
+          文档写明可以被拒绝(比如有窗口不肯关);`exit()` 不会被拒。
+        """
+        log.info("退出")
+        steps = [
+            # 配置变更是防抖的,退出前得把还压着的那次发出来,否则用户改完
+            # 最后一项就关程序,那次改动会随没触发的定时器一起丢掉
+            ("保存未落盘的设置", self.window.flush_pending),
+            ("停热键", self.hotkeys.stop),
+            ("停 Esc 监听", self.cancel_key.stop),
+            ("停前台跟踪", self.focus.stop),
+            ("停状态定时器", self.status.stop),
+            ("停录音", self.session.abort),
+            ("停识别线程", self.engine.stop),
+            ("关历史库", self.history.close),
+            ("藏提示条", self.overlay.hide),
+            ("藏悬浮麦克风", self.badge.hide),
+            ("藏托盘图标", self.tray.hide),
+        ]
+        for name, step in steps:
+            try:
+                step()
+            except Exception:
+                log.exception("退出时「%s」出错,继续往下收", name)
+        log.info("结束事件循环")
+        self.qapp.exit(0)
