@@ -46,7 +46,7 @@ class MicStep(Step):
 
         pick = Card("第一步:选设备,看电平")
         # 跟设置页共用同一个组件 —— 判断"这到底是不是话筒"的标准只有一份
-        self.picker = DevicePicker(palette, cfg.audio.device)
+        self.picker = DevicePicker(palette, self._saved_index())
         self.picker.deviceChanged.connect(self._on_device_changed)
         pick.add(self.picker)
         pick.add(hint(device_hint()))
@@ -83,10 +83,18 @@ class MicStep(Step):
         self.body.addWidget(test)
         self.body.addStretch(1)
 
+    def _saved_index(self) -> int | None:
+        """配置里那个设备**现在**的编号。按名字找,编号只是缓存 —— 见 AudioPage。"""
+        a = self._cfg.audio
+        try:
+            return audio_mod.resolve_device(a.device, a.device_name, a.device_hostapi)[0]
+        except Exception:
+            return None
+
     # ---- 进出 ----
 
     def on_enter(self) -> None:
-        self.picker.reload_devices(self._cfg.audio.device)
+        self.picker.reload_devices(self._saved_index())
         self.picker.start_monitor()
 
     def on_leave(self) -> None:
