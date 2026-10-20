@@ -248,6 +248,9 @@ QHeaderView::section {{
 }}
 QTableWidget::item {{ padding: 5px 4px; }}
 
+/* 历史窗口的卡片列表。卡片由 history_window 的委托自己画,这里只去掉外框 */
+QListWidget[role="entries"] {{ background: {p.bg}; border: none; outline: none; }}
+
 /* ---- 进度条(电平表)---- */
 QProgressBar {{
     background: {p.surface_alt};

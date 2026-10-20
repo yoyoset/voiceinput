@@ -29,6 +29,7 @@ from .microphone import Microphone
 from .postprocess import finalize
 from .session import RecordingSession
 from .settings import Settings
+from .ui.history_window import HistoryWindow
 from .ui.main_window import MainWindow
 from .ui.badge_placement import BadgePlacement
 from .ui.mic_badge import MicBadge
@@ -67,6 +68,7 @@ class App(QObject):
         self.badge = MicBadge(self.theme.palette)
         self.tray = Tray(self.theme.palette)
         self.window = MainWindow(self.cfg, self.theme.palette, self.history.current)
+        self.history_window = HistoryWindow(self.theme.palette, self.history.current)
 
         self.mic = Microphone(self)
 
@@ -116,6 +118,9 @@ class App(QObject):
 
     def _wire(self) -> None:
         self.tray.openRequested.connect(self._show_window)
+        self.tray.historyRequested.connect(self.history_window.open)
+        self.window.historyWindowRequested.connect(self.history_window.open)
+        self.history_window.repasteRequested.connect(self.delivery.resend)
         self.tray.quitRequested.connect(self.shutdown)
         self.tray.pauseToggled.connect(self._on_pause_toggled)
         self.tray.wizardRequested.connect(self.show_wizard)
@@ -128,7 +133,7 @@ class App(QObject):
         self.window.configChanged.connect(self.settings.update)
         self.window.engineReloadRequested.connect(self._reload_engine)
         self.window.modelDownloadRequested.connect(self.show_wizard)
-        self.window.repasteRequested.connect(self.delivery.resend)
+        self.history_window.addToDictionaryRequested.connect(self._add_to_dictionary)
         self.delivery.pasted.connect(self.overlay.show_result)
         self.delivery.blocked.connect(self._on_delivery_blocked)
 
@@ -163,11 +168,13 @@ class App(QObject):
         # 换配色时谁需要被通知,登记在一处 —— 新加带配色的控件时
         # 不用再回到配置分发里补一行
         self.theme.watch(self.overlay.set_palette, self.badge.set_palette,
-                         self.tray.set_palette, self.window.apply_palette)
+                         self.tray.set_palette, self.window.apply_palette,
+                         self.history_window.set_palette)
 
         self.mic.noteChanged.connect(lambda note: self.status.warn_later(note, 6000))
         # 开关了历史就换了个对象(或者没有对象了),界面得跟着换
         self.history.changed.connect(self.window.set_history)
+        self.history.changed.connect(self.history_window.set_history)
 
         # **配置变了之后谁要跟着动,就是这份名单。**
         # 各家自己判断"跟我有关的那几项变了没",所以这里不写任何比较。
@@ -277,6 +284,7 @@ class App(QObject):
         self.window.set_measured(result.infer_seconds, result.audio_seconds)
         self.history.add(text, raw, result.audio_seconds,
                          result.infer_seconds, "sensevoice")
+        self.history_window.refresh()
 
         self.status.refresh()
         warning = self.session.take_warning()
@@ -361,16 +369,25 @@ class App(QObject):
         self.window.raise_()
         self.window.activateWindow()
 
+    def _add_to_dictionary(self, text: str) -> None:
+        """历史窗口里点了「加入词典」:打开设置窗口,词典页新建一行带着原句。"""
+        self.window.add_to_dictionary(text)
+        self._show_window()
+
     def _yield_focus(self) -> bool:
         """把前台焦点让出去,返回是否真的动了手。
 
         从历史重新粘贴时要用:前台窗口是 VoiceInput 自己,不藏起来的话
-        文字会粘进它自己的搜索框。本来就没显示就什么都不用做。
+        文字会粘进它自己的搜索框。主窗口和历史窗口**两个都要藏** ——
+        只藏一个的话,焦点会落到另一个上,粘贴照样进了自己。
+        本来就没显示就什么都不用做。
         """
-        if not self.window.isVisible():
-            return False
-        self.window.hide()
-        return True
+        moved = False
+        for w in (self.window, self.history_window):
+            if w.isVisible():
+                w.hide()
+                moved = True
+        return moved
 
     # ================= 向导 =================
 

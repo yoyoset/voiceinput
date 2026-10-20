@@ -138,14 +138,13 @@ class TestMainWindow:
         assert w.collect().replacements == {"keyper": "keytyper"}
         h.close()
 
-    def test_history_tab_lists_entries(self, qapp, tmp_path):
+    def test_history_tab_shows_count(self, qapp, tmp_path):
+        """列表已经挪到独立的历史窗口,这一页只报条数 + 入口按钮。"""
         h = History(path=tmp_path / "h.db")
         h.add("第一条", "", 1.0, 0.1)
         h.add("第二条", "", 1.0, 0.1)
         w = MainWindow(Config(), theme.DARK, h)
-        w.history.reload()
-        assert w.history.hist_table.rowCount() == 2
-        assert w.history.hist_table.item(0, 1).text() == "第二条"
+        assert w.history.count_label.text() == "当前共 2 条"
         h.close()
 
     def test_model_status(self, qapp, tmp_path):
@@ -235,38 +234,15 @@ class TestHistoryControls:
         assert not w.history.hist_max.isEnabled()
         h.close()
 
-    def test_delete_selected_removes_one_entry(self, qapp, tmp_path):
-        """之前只能清空全部 —— 说了不想留的一句话,得把整个历史都毁掉。"""
-        h = History(path=tmp_path / "h.db")
-        h.add("留着的", "", 1.0, 0.1)
-        h.add("要删的", "", 1.0, 0.1)
-        w = MainWindow(Config(), theme.DARK, h)
-        w.history.reload()
-        w.history.hist_table.selectRow(0)          # 最新的那条 = "要删的"
-        w.history._delete_selected()
-        assert [e.text for e in h.recent()] == ["留着的"]
-        assert w.history.hist_table.rowCount() == 1
-        h.close()
-
-    def test_delete_without_selection_is_safe(self, qapp, tmp_path):
-        h = History(path=tmp_path / "h.db")
-        h.add("还在", "", 1.0, 0.1)
-        w = MainWindow(Config(), theme.DARK, h)
-        w.history.reload()
-        w.history.hist_table.clearSelection()
-        w.history._delete_selected()
-        assert h.count() == 1
-        h.close()
-
-    def test_set_history_to_none_clears_table(self, qapp, tmp_path):
-        """关掉历史之后表格不能还留着旧内容。"""
+    def test_set_history_to_none_says_closed(self, qapp, tmp_path):
+        """关掉历史之后条数不能还停在旧数字上。
+        (单条删除在历史窗口里,见 test_history_window.py)"""
         h = History(path=tmp_path / "h.db")
         h.add("旧的", "", 1.0, 0.1)
         w = MainWindow(Config(), theme.DARK, h)
-        w.history.reload()
-        assert w.history.hist_table.rowCount() == 1
+        assert w.history.count_label.text() == "当前共 1 条"
         w.set_history(None)
-        assert w.history.hist_table.rowCount() == 0
+        assert w.history.count_label.text() == "历史记录已关闭"
         h.close()
 
 

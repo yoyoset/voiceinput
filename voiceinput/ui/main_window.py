@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
     configChanged = Signal(object)     # Config
     engineReloadRequested = Signal()
     modelDownloadRequested = Signal()
-    repasteRequested = Signal(str)     # text
+    historyWindowRequested = Signal()
 
     def __init__(self, cfg: Config, palette: Palette, history, parent=None) -> None:
         super().__init__(parent)
@@ -75,8 +75,7 @@ class MainWindow(QMainWindow):
         self.general.badgeHomeRequested.connect(self._badge_home)
         self.engine.reloadRequested.connect(self.engineReloadRequested.emit)
         self.engine.downloadRequested.connect(self.modelDownloadRequested.emit)
-        self.history.repasteRequested.connect(self.repasteRequested.emit)
-        self.history.addToDictionaryRequested.connect(self._add_to_dictionary)
+        self.history.openWindowRequested.connect(self.historyWindowRequested.emit)
 
         # 配置变更防抖。
         #
@@ -170,8 +169,8 @@ class MainWindow(QMainWindow):
         if self._config_timer.isActive():
             self._flush_config()
 
-    def _add_to_dictionary(self, text: str) -> None:
-        """历史页点了「加入词典」:切过去,新建一行,把选中的原句带过去。"""
+    def add_to_dictionary(self, text: str) -> None:
+        """历史窗口点了「加入词典」:切到词典页,新建一行,把选中的原句带过去。"""
         self.tabs.setCurrentWidget(self.dictionary)
         self.dictionary.prefill(text)
 
@@ -193,7 +192,7 @@ class MainWindow(QMainWindow):
         if title != "音频":
             self.audio.stop_test()
         if title == "历史":
-            self.history.reload()
+            self.history.refresh_count()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         """关窗口只是隐藏,程序继续在托盘里跑。"""

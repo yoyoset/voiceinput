@@ -17,6 +17,7 @@ from .theme import Palette
 
 class Tray(QSystemTrayIcon):
     openRequested = Signal()
+    historyRequested = Signal()
     quitRequested = Signal()
     pauseToggled = Signal(bool)
     wizardRequested = Signal()
@@ -33,6 +34,11 @@ class Tray(QSystemTrayIcon):
         self._act_status.setEnabled(False)
         menu.addAction(self._act_status)
         menu.addSeparator()
+
+        # 放在最上面:要找刚才没粘进去的那句话时最急,不该先进设置翻选项卡
+        act_history = QAction("历史记录", menu)
+        act_history.triggered.connect(self.historyRequested.emit)
+        menu.addAction(act_history)
 
         act_open = QAction("设置与历史", menu)
         act_open.triggered.connect(self.openRequested.emit)
