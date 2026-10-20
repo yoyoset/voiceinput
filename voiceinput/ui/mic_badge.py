@@ -79,7 +79,9 @@ class MicBadge(FloatingHud, QWidget):
         # 不是一回事 —— 后者被系统从外面藏掉时还是 True。
         self._wanted = False
         self._last_problems: list[str] = []
-        self._probe = window_state.probe      # 测试里换成假的
+        self._probe = window_state.probe      # 下面这三个测试里换成假的
+        self._covering = window_state.covering_window
+        self._lift = window_state.raise_topmost
         self._guard = QTimer(self)
         self._guard.setInterval(GUARD_MS)
         self._guard.timeout.connect(self._guard_check)
@@ -193,24 +195,33 @@ class MicBadge(FloatingHud, QWidget):
         `setVisible(True)` 对"自认为已显示"的窗口什么都不做。取消再勾
         之所以管用,是因为它走了一遍真正的 hide → show。这里自动做同一件事。
 
-        是被哪一种方式藏掉的**还没抓到现场**,所以把原因写进日志(只在
-        原因变化时写,免得刷屏),见 `window_state.py`。
+        原因写进日志(只在原因变化时写,免得刷屏),见 `window_state.py`。
+
+        **被普通窗口压住(2026-10-20 抓到)和别的几种不一样:** 窗口本身好好的,
+        只是 z 序沉到了普通窗口下面,所以不用 hide → show,重新插回置顶档就行。
+        现场实测过,这一下不抢焦点。
         """
         if not self._wanted:
             return
-        state = self._probe(int(self.winId()))
+        hwnd = int(self.winId())
+        state = self._probe(hwnd)
         if state is None:
             return
         visible, iconic, cloaked = state
-        found = window_state.problems(
-            visible=visible and self.isVisible(), iconic=iconic, cloaked=cloaked,
-            on_screen=self._on_some_screen())
+        seen = dict(visible=visible and self.isVisible(), iconic=iconic, cloaked=cloaked,
+                    on_screen=self._on_some_screen())
+        gone = window_state.problems(**seen)
+        # 窗口都不在了,谈不上被谁压着 —— 先摆出来,下一轮再看 z 序
+        covered_by = None if gone else self._covering(hwnd)
+        found = window_state.problems(**seen, covered_by=covered_by)
         if found != self._last_problems:
             if found:
                 log.warning("悬浮麦克风不在屏幕上了(%s),重新显示", "、".join(found))
             self._last_problems = found
-        if found:
+        if gone:
             self._reshow()
+        elif covered_by:
+            self._lift(hwnd)
         else:
             # 看得见也不一定画着东西:透明置顶窗口在显示器休眠/切分辨率之后
             # 有可能内容丢了、整个变成全透明(没实测到,属于推测)。

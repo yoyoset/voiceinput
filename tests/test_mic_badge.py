@@ -16,6 +16,9 @@ from voiceinput.ui.mic_badge import SIZE, MicBadge
 @pytest.fixture
 def badge(qapp):
     b = MicBadge(theme.DARK)
+    # 巡检里两个直接调 Win32 的,测试里不能碰真桌面
+    b._covering = lambda hwnd: None
+    b._lift = lambda hwnd: True
     yield b
     b.close()
 
@@ -194,3 +197,39 @@ class TestGuard:
         monkeypatch.setattr(badge, "_reshow", lambda: reshown.append(1))
         badge._guard_check()
         assert reshown == []
+
+    def test_covered_by_normal_window_is_lifted_not_reshown(self, badge, monkeypatch):
+        """**2026-10-20 现场。** 窗口本身好好的,只是沉到了普通窗口下面:
+        重新插回置顶档就够了,不要 hide → show(会闪一下)。"""
+        badge.show()
+        badge.move_to_default()
+        badge._probe = lambda hwnd: (True, False, 0)
+        badge._covering = lambda hwnd: "chrome.exe:Chrome_WidgetWin_1"
+        lifted, reshown = [], []
+        badge._lift = lambda hwnd: lifted.append(hwnd)
+        monkeypatch.setattr(badge, "_reshow", lambda: reshown.append(1))
+        badge._guard_check()
+        assert lifted == [int(badge.winId())]
+        assert reshown == []
+        assert badge._last_problems == ["被普通窗口压在下面(chrome.exe:Chrome_WidgetWin_1)"]
+
+    def test_hidden_window_is_not_asked_about_z_order(self, badge, monkeypatch):
+        """窗口都不在了就先摆出来;这时候查 z 序没有意义,也不该再置顶一次。"""
+        badge.show()
+        badge._probe = lambda hwnd: (False, False, 0)
+        asked, lifted = [], []
+        badge._covering = lambda hwnd: asked.append(hwnd)
+        badge._lift = lambda hwnd: lifted.append(hwnd)
+        monkeypatch.setattr(badge, "_reshow", lambda: None)
+        badge._guard_check()
+        assert asked == [] and lifted == []
+
+    def test_healthy_window_is_not_lifted(self, badge, monkeypatch):
+        """没被压住时不能每 3 秒都重设置顶 —— 会和别的置顶程序(magpie、画中画)抢。"""
+        badge.show()
+        badge.move_to_default()
+        badge._probe = lambda hwnd: (True, False, 0)
+        lifted = []
+        badge._lift = lambda hwnd: lifted.append(hwnd)
+        badge._guard_check()
+        assert lifted == []
