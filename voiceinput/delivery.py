@@ -80,11 +80,16 @@ class Delivery(QObject):
         交给外面提示"自己贴一下"。`None` 表示调用方没给,或者这台机器上
         判断不了前台窗口(见 `foreground.py`)——两种情况都不拦,照常贴。
         """
-        if (expected_window is not None
-                and self._foreground() != expected_window):
+        # 两条分支都记日志。2026-09-15 连丢两句时日志里只有"识别成功",
+        # 分不出是贴了但没落进输入框、还是窗口变了没敢贴 —— 只能猜。
+        current = self._foreground()
+        if expected_window is not None and current != expected_window:
+            log.warning("目标窗口已切换(按下时 %s,现在 %s),没有粘贴,已放进剪贴板",
+                        expected_window, current)
             self._output.copy(text)
             self.blocked.emit(text)
             return
+        log.info("已发送粘贴 窗口=%s 回车=%s", current, then_enter)
         self._output.paste_async(text, then_enter=then_enter)
 
     def resend(self, text: str) -> None:
