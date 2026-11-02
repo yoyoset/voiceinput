@@ -43,10 +43,13 @@ mkdir -p models && tar -xjf sv.tar.bz2 -C models/ && rm sv.tar.bz2
 
 | 热键 | 行为 |
 |---|---|
-| `Ctrl + Win` | 按住说话,松开后把文字粘贴到光标处 |
-| `Ctrl + Shift + Win` | 同上,粘贴后再补一个回车(连续对话时用) |
+| `Ctrl + Alt + Space` | 按住说话,松开后把文字粘贴到光标处 |
+| `Ctrl + Alt + Enter` | 同上,粘贴后再补一个回车(连续对话时用) |
 
-都可以在「常规」页改。
+都可以在「常规」页改。被别的程序占用时,`--selftest` 会报出来。
+
+最早的默认是 `Ctrl + Win`,它会被 Ctrl+Win+任何键误触发(包括 Windows 切虚拟桌面),
+所以换掉了,见 [docs/pitfalls.md](docs/pitfalls.md)「纯修饰键的热键会被它的每个超集触发」。
 
 ## 打包成便携版
 
