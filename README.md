@@ -243,3 +243,9 @@ VoiceInput 自己的代码以 [MIT 许可证](LICENSE) 发布。
 
 LGPL 组件以独立的动态库形式放在 `_internal/` 目录里,可以自行替换为其他兼容版本。
 模型按 FunASR 模型许可证的要求保留了来源、作者和模型名。
+
+## 赞助
+
+如果这个项目帮你省了时间，欢迎赞助一点 Token（算力）。你的支持会直接变成下一轮的推理与测试成本，让它持续维护。
+
+<table><tr><td align="center"><img src="docs/donate/donate_alipay.png" width="160" alt="支付宝"><br>支付宝</td><td align="center"><img src="docs/donate/donate_wechat.png" width="160" alt="微信支付"><br>微信支付</td><td align="center"><img src="docs/donate/donate_paypal.png" width="160" alt="PayPal"><br>PayPal</td></tr></table>
