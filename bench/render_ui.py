@@ -24,6 +24,7 @@ from voiceinput.config import Config  # noqa: E402
 from voiceinput.history import History  # noqa: E402
 from voiceinput.ui import theme  # noqa: E402
 from voiceinput.ui.main_window import MainWindow  # noqa: E402
+from voiceinput.ui.history_window import HistoryWindow  # noqa: E402
 from voiceinput.ui.mic_badge import MicBadge  # noqa: E402
 from voiceinput.ui.overlay import Overlay  # noqa: E402
 from voiceinput.ui.steps import CALIBRATION_PHRASE  # noqa: E402
@@ -74,32 +75,39 @@ def render(app: QApplication, mode: str) -> None:
 
     window = MainWindow(sample_config(), palette, history)
     window.resize(700, 640)
-    window.set_status("ready", "就绪", "Ctrl + Win 说话粘贴 · Ctrl + Shift + Win 粘贴并发送")
+    window.set_status("ready", "就绪", "Ctrl + Alt + Space 说话粘贴 · Ctrl + Alt + Enter 粘贴并发送")
     window.set_model_status(True, "已加载:sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17")
     # 刻意不 show():grab() 自己会把布局跑完,窗口不会出现在桌面上
 
     for i in range(window.tabs.count()):
         window.tabs.setCurrentIndex(i)
         if window.tabs.tabText(i) == "历史":
-            window._reload_history()
+            window.history.refresh_count()
         app.processEvents()
         shoot(window, f"{mode}-{i}-{window.tabs.tabText(i)}.png")
 
     # 音频页的电平表要有数据才看得出样子
     window.tabs.setCurrentIndex(1)
-    window.picker.bar.set_level(-22.0)
-    window.picker.hint.setText("-22 dBFS —— 有信号")
+    window.audio.picker.bar.set_level(-22.0)
+    window.audio.picker.hint.setText("-22 dBFS —— 有信号")
     app.processEvents()
     shoot(window, f"{mode}-audio-active.png")
 
     # 热键冲突提示的样子:把两个热键设成同一个组合
     window.tabs.setCurrentIndex(0)
-    window.hk_send.set_spec(window.hk_paste.spec())
-    window._refresh_hotkey_problems()
+    window.general.hk_send.set_spec(window.general.hk_paste.spec())
+    window.general.refresh_hotkey_problems()
     app.processEvents()
     shoot(window, f"{mode}-general-hotkey-conflict.png")
 
     window.close()
+
+    # 历史记录 2026-10 起是独立窗口,不再是主窗口的一个分页
+    hist = HistoryWindow(palette, history)
+    hist.reload()
+    app.processEvents()
+    shoot(hist, f"{mode}-history.png")
+    hist.close()
     history.close()
 
     # 向导。用假 backend,不碰真模型和麦克风。
@@ -109,17 +117,17 @@ def render(app: QApplication, mode: str) -> None:
         def transcribe_async(self, audio, sr, cb): cb(CALIBRATION_PHRASE, None)
 
     wizard = Wizard(sample_config(), palette, _Backend())
-    wizard.resize(680, 580)
+    wizard.resize(720, 860)
     for i, name in enumerate(["欢迎", "模型", "麦克风", "热键", "完成"]):
         wizard._goto(i)
         if name == "麦克风":
-            wizard.picker.bar.set_level(-22.0)
-            wizard.picker.hint.setText("-22 dBFS —— 有信号")
+            wizard.mic.picker.bar.set_level(-22.0)
+            wizard.mic.picker.hint.setText("-22 dBFS —— 有信号")
             wizard.mic.result.setText(f"识别结果:{CALIBRATION_PHRASE}")
-            wizard._verdict(True, "完全正确,麦克风没问题")
+            wizard.mic._say(True, "完全正确,麦克风没问题")
         app.processEvents()
         shoot(wizard, f"{mode}-wizard-{i}-{name}.png")
-    wizard._stop_level()
+    wizard.mic.picker.stop_monitor()
     wizard.close()
     db.unlink(missing_ok=True)
 
