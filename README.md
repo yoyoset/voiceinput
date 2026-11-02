@@ -224,3 +224,22 @@ bench/             引擎对比、样本录制、界面渲染
 docs/              engine-benchmark.md(引擎实测)、pitfalls.md(工程踩坑)、images/(README 截图)
 tests/             755 项测试
 ```
+
+## 许可证
+
+VoiceInput 自己的代码以 [MIT 许可证](LICENSE) 发布。
+
+便携版里还打包了下面这些第三方组件,各自遵循原许可证:
+
+| 组件 | 用途 | 许可证 |
+|---|---|---|
+| [SenseVoice-Small](https://github.com/FunAudioLLM/SenseVoice)(作者:FunAudioLLM 团队,经 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 转换为 `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17`) | 语音识别模型 | [FunASR Model License](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE) |
+| [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) / sherpa-onnx-core | 推理运行时 | Apache-2.0 |
+| [PySide6 / Qt](https://www.qt.io/qt-for-python) | 界面 | LGPL-3.0 |
+| [pynput](https://github.com/moses-palmer/pynput) | 全局热键 | LGPL-3.0 |
+| [sounddevice](https://github.com/spatialaudio/python-sounddevice)(含 PortAudio) | 录音 | MIT |
+| [soundfile](https://github.com/bastibe/python-soundfile)(含 libsndfile) | 音频读写 | BSD-3-Clause(libsndfile 为 LGPL-2.1) |
+| [NumPy](https://numpy.org/) | 数值计算 | BSD-3-Clause 等 |
+
+LGPL 组件以独立的动态库形式放在 `_internal/` 目录里,可以自行替换为其他兼容版本。
+模型按 FunASR 模型许可证的要求保留了来源、作者和模型名。
